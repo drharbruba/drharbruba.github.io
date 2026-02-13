@@ -347,7 +347,7 @@ button:hover {
   const path = `${folder}/${val}.html#answer_detail`;
   document.getElementById('questionFrame').src = path;
 ">💬</button>
-    <button id="btn-Note2" onclick="toggleNotePanel()">📝</button>
+    <button id="btn-Note2" onclick="toggleNotePanel(); document.getElementById('noteArea').focus();">📝</button>
         <button id="btn-Load2" onclick="loadPreviousQuestions()">📂LoadOldQ</button>
    <button id="btn-save2"onclick="saveMergedQuestions()">💾 SaveAllQ</button>
 	<button onclick="previousQuestion()">⬅️Previous</button>
