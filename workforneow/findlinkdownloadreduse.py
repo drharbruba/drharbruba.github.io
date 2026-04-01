@@ -12,8 +12,8 @@ from PIL import Image
 TARGET_FOLDER = Path(r"F:\delete\del\rosh2024Q3000OnlinePart\rosh2024Q3000")
 
 MAX_DOWNLOAD_WORKERS = 20
-MAX_SIZE_KB_SKIP = 600
-TARGET_MAX_SIZE_MB = 1.0
+MAX_SIZE_KB_SKIP = 600          # Files ≤ 600KB will be skipped
+TARGET_MAX_SIZE_MB = 1.0        # Target size for large images ≈ 1MB
 TARGET_SIZE_BYTES = int(TARGET_MAX_SIZE_MB * 1024 * 1024)
 
 DOWNLOAD_FOLDER = Path("downlinks")
@@ -90,25 +90,33 @@ def download_images():
     success = sum(1 for s, _ in results if s)
     print(f"\n✓ Download completed: {success}/{len(urls)} images in 'downlinks' folder\n")
 
-def compress_to_1mb(image_path):
+def compress_to_target_size(image_path):
+    """Compress image to approximately 1MB if it's larger than 1MB"""
     try:
         with Image.open(image_path) as img:
-            # حساب نسبة التصغير
-            ratio = 0.82
-            new_size = (int(img.width * ratio), int(img.height * ratio))
-            resized = img.resize(new_size, Image.LANCZOS)
+            # Start with a reasonable reduction ratio
+            ratio = 0.85
+            quality = 92
+            
+            out_path = COMPRESSED_FOLDER / image_path.name   # Same original name (no _compressed)
 
-            out_path = COMPRESSED_FOLDER / (image_path.stem + "_compressed" + image_path.suffix)
+            # Try different ratios and quality until we get close to 1MB
+            for attempt in range(8):
+                new_size = (int(img.width * ratio), int(img.height * ratio))
+                resized = img.resize(new_size, Image.LANCZOS)
 
-            if image_path.suffix.lower() in {'.jpg', '.jpeg'}:
-                quality = 88
-                while quality > 35:
+                if image_path.suffix.lower() in {'.jpg', '.jpeg'}:
                     resized.save(out_path, quality=quality, optimize=True)
-                    if out_path.stat().st_size <= TARGET_SIZE_BYTES * 1.05:   # ±5% tolerance
-                        break
-                    quality -= 6
-            else:
-                resized.save(out_path, optimize=True)
+                else:
+                    resized.save(out_path, optimize=True)
+
+                current_size = out_path.stat().st_size
+                if current_size <= TARGET_SIZE_BYTES * 1.08:   # Allow up to 8% over
+                    break
+                
+                # Reduce more if still too big
+                ratio *= 0.92
+                quality = max(quality - 8, 45)
 
         return True, out_path.name
     except Exception:
@@ -118,20 +126,20 @@ def compress_images():
     print("Step 3: Compressing images larger than 1MB to ~1MB...")
     COMPRESSED_FOLDER.mkdir(exist_ok=True)
 
-    # فقط الملفات الأكبر من 1 ميجا
+    # Get only images larger than 1MB
     to_compress = [f for f in DOWNLOAD_FOLDER.rglob("*") 
                    if f.suffix.lower() in {'.png','.jpg','.jpeg','.webp'} 
                    and f.stat().st_size > TARGET_SIZE_BYTES]
 
     if not to_compress:
-        print("No images larger than 1MB found.")
+        print("No images larger than 1MB found to compress.")
         return
 
     print(f"Found {len(to_compress)} images > 1MB. Starting compression...\n")
 
     count = 0
     for img in tqdm(to_compress, desc="Compressing"):
-        success, name = compress_to_1mb(img)
+        success, name = compress_to_target_size(img)
         if success:
             count += 1
 
@@ -147,19 +155,19 @@ if __name__ == "__main__":
     extract_links()
     download_images()
 
-    print("-" * 60)
+    print("-" * 70)
     answer = input("Do you want to compress images larger than 1MB now? (y/n): ").strip().lower()
 
-    if answer in ['y', 'yes']:
+    if answer in ['y', 'yes', '1']:
         compress_images()
     else:
         print("Compression skipped by user.")
 
     print("\n" + "=" * 85)
     print("🎉 ALL PROCESS COMPLETED SUCCESSFULLY!")
-    print("   • Links → link.txt")
-    print("   • Images → downlinks/")
-    print("   • Compressed images → downlinks_compressed/")
+    print("   • Links extracted     → link.txt")
+    print("   • Images downloaded   → downlinks/")
+    print("   • Compressed images   → downlinks_compressed/ (same original names)")
     print("=" * 85)
 
     input("\nPress Enter to exit...")
